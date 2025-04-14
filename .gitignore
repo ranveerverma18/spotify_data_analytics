@@ -1,0 +1,47 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+
+# === Virtual Environments ===
+env/
+venv/
+ENV/
+.venv/
+
+# === VS Code ===
+.vscode/
+
+# === OS-specific ===
+.DS_Store
+Thumbs.db
+
+# === Logs ===
+*.log
+
+# === Environment Files ===
+.env
+*.env
+
+# === MongoDB dump files (if any) ===
+*.bson
+*.json
+dump/
+
+# === Kafka / Temp Data ===
+*.avro
+*.kafka
+*.tmp
+*.pid
+
+# === Jupyter Notebooks Checkpoints (if used later) ===
+.ipynb_checkpoints/
+
+# === Misc ===
+.cache/
+*.sqlite3
