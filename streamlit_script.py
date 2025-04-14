@@ -2,98 +2,119 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from pymongo import MongoClient
-import threading
 import os
-from bson.json_util import dumps
+from dotenv import load_dotenv
 
-# MongoDB connection (use environment variable for security)
-mongo_uri = os.getenv("MONGO_URI", "mongodb+srv://ranveerverma18:ranveer18@mongo-db-cluster.7xghnej.mongodb.net/spotify_data?retryWrites=true&w=majority")
-client = MongoClient(mongo_uri)  # MongoDB URI from environment variable
-db = client['spotify_data']  # Your database name
+# Load environment variables
+load_dotenv()
+mongo_uri = os.getenv("MONGO_URI")
 
-# Print to confirm connection
-print("Connected to MongoDB")
+# MongoDB connection
+client = MongoClient(mongo_uri)
+db = client['spotify_data']
+print("✅ Connected to MongoDB Atlas")
 
-# List of relevant collections
-collections = ['spotify_liked_songs', 'spotify_user_playlists', 'spotify_top_tracks', 
+# Streamlit UI Setup
+st.set_page_config(page_title="Spotify Real-Time Dashboard", layout="wide")
+st.title("🎧 Spotify Real-Time Dashboard")
+st.sidebar.header("🎚️ Filters")
+
+# Collection Selector
+collections = ['spotify_liked_songs', 'spotify_user_playlists', 'spotify_top_tracks',
                'spotify_top_artists', 'spotify_recently_played']
+selected_collection = st.sidebar.selectbox("📂 Select Collection", collections)
 
-# Streamlit layout
-st.title("Spotify Real-Time Dashboard")
-st.sidebar.header("Filters")
+# Manual Refresh Button
+if st.sidebar.button("🔄 Refresh Now"):
+    st.rerun()
 
-# Dropdown to select collection
-selected_collection = st.sidebar.selectbox("Select Collection", collections)
-
-# Function to fetch data from MongoDB
+# Fetch data with caching
+@st.cache_data(ttl=30)
 def fetch_data(collection_name):
-    collection = db[collection_name]
-    data = collection.find()
-    df = pd.DataFrame(list(data))  # Convert MongoDB data to DataFrame
-    return df
+    data = list(db[collection_name].find())
+    return pd.DataFrame(data)
 
-# Show real-time data
+# Main Display Logic
 def display_data():
     df = fetch_data(selected_collection)
+    st.subheader(f"📊 Data from `{selected_collection}`")
+
     if df.empty:
-        st.write("No data available.")
-    else:
-        # Debugging: Force print the DataFrame
-        st.write(df.head())  # This will show the first few rows of data
-        st.write(f"Current Data from Collection: {selected_collection}")
-        st.dataframe(df)
-        
-        # Example visualizations based on collection
-        if selected_collection == 'spotify_liked_songs':
-            if 'duration_ms' in df.columns and not df['duration_ms'].empty:
-                fig = px.histogram(df, x='duration_ms', title="Song Duration Distribution")
-                st.plotly_chart(fig)
+        st.warning("No data available yet.")
+        return
 
-        elif selected_collection == 'spotify_top_tracks':
-            if 'track_name' in df.columns and 'popularity' in df.columns and not df[['track_name', 'popularity']].empty:
-                fig = px.bar(df, x='track_name', y='popularity', title="Top Tracks by Popularity")
-                st.plotly_chart(fig)
+    # Drop ID and Convert date
+    if '_id' in df.columns:
+        df.drop(columns=['_id'], inplace=True)
+    if 'played_at' in df.columns:
+        df['played_at'] = pd.to_datetime(df['played_at'], errors='coerce')
 
-        elif selected_collection == 'spotify_user_playlists':
-            if 'track_count' in df.columns and not df['track_count'].empty:
-                fig = px.histogram(df, x='track_count', title="Playlist Track Count Distribution")
-                st.plotly_chart(fig)
+    # User filter if applicable
+    if 'user_id' in df.columns:
+        user_ids = df['user_id'].dropna().unique().tolist()
+        selected_user = st.sidebar.selectbox("👤 Filter by User", user_ids)
+        df = df[df['user_id'] == selected_user]
 
-        elif selected_collection == 'spotify_top_artists':
-            if 'artist_name' in df.columns and not df['artist_name'].empty:
-                fig = px.bar(df, x='artist_name', title="Top Artists")
-                st.plotly_chart(fig)
+    # Optional date filter for recently played
+    if selected_collection == 'spotify_recently_played' and 'played_at' in df.columns:
+        min_date = df['played_at'].min()
+        max_date = df['played_at'].max()
+        date_range = st.sidebar.date_input("📅 Date Range", [min_date, max_date])
+        if len(date_range) == 2:
+            start, end = date_range
+            df = df[(df['played_at'].dt.date >= start) & (df['played_at'].dt.date <= end)]
 
-        elif selected_collection == 'spotify_recently_played':
-            if 'played_at' in df.columns and not df['played_at'].empty:
-                fig = px.histogram(df, x='played_at', title="Recently Played Tracks")
-                st.plotly_chart(fig)
+    # Dataframe preview
+    st.dataframe(df.head(20), use_container_width=True)
 
-# Function to handle MongoDB change stream and trigger Streamlit refresh
-def handle_change(change):
-    print(f"Change detected: {dumps(change)}")
-    st.experimental_rerun()  # Trigger Streamlit app refresh on change detection
+    # Show Metrics
+    st.markdown("### 📌 Quick Stats")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("📁 Records", len(df))
+    if 'duration_ms' in df.columns:
+        avg_duration = round(df['duration_ms'].mean() / 60000, 2)
+        col2.metric("⏱ Avg Duration (min)", avg_duration)
+    if 'popularity' in df.columns:
+        avg_popularity = round(df['popularity'].mean(), 2)
+        col3.metric("🔥 Avg Popularity", avg_popularity)
 
-# MongoDB Change Stream Logic for Real-Time Updates
-def watch_changes():
-    collections_to_watch = ['spotify_liked_songs', 'spotify_recently_played', 
-                            'spotify_user_playlists', 'spotify_top_tracks']
-    
-    change_streams = [db[collection].watch(full_document='updateLookup') for collection in collections_to_watch]
+    # Visualizations
+    st.markdown("### 📊 Insights")
 
-    for stream in change_streams:
-        while True:
-            change = stream.next()
-            handle_change(change)
+    if selected_collection == 'spotify_top_tracks' and {'track_name', 'popularity'}.issubset(df.columns):
+        fig1 = px.bar(df.sort_values(by='popularity', ascending=False).head(10),
+                      x='track_name', y='popularity', color='popularity',
+                      title="🔥 Top Tracks by Popularity")
+        st.plotly_chart(fig1, use_container_width=True)
 
-# Start the change stream listener in a separate thread
-def start_change_stream():
-    thread = threading.Thread(target=watch_changes, daemon=True)
-    thread.start()
+    elif selected_collection == 'spotify_top_artists' and 'artist_name' in df.columns:
+        fig2 = px.pie(df, names='artist_name', title="🎤 Your Favorite Artists", hole=0.4)
+        st.plotly_chart(fig2, use_container_width=True)
 
-# Start listening for MongoDB changes when the app loads
-start_change_stream()
+    elif selected_collection == 'spotify_liked_songs' and 'duration_ms' in df.columns:
+        fig3 = px.histogram(df, x='duration_ms', nbins=50, title="🎶 Liked Songs Duration")
+        st.plotly_chart(fig3, use_container_width=True)
 
-# Display the data
+    elif selected_collection == 'spotify_user_playlists' and 'track_count' in df.columns:
+        fig4 = px.bar(df, x='playlist_name', y='track_count', title="📁 Tracks per Playlist")
+        st.plotly_chart(fig4, use_container_width=True)
+
+    elif selected_collection == 'spotify_recently_played' and 'played_at' in df.columns:
+        col_a, col_b = st.columns(2)
+
+        with col_a:
+            df['hour'] = df['played_at'].dt.hour
+            fig5 = px.histogram(df, x='hour', nbins=24, title="⏱️ Listening by Hour")
+            st.plotly_chart(fig5, use_container_width=True)
+
+        with col_b:
+            df['day'] = df['played_at'].dt.date
+            fig6 = px.histogram(df, x='day', title="📆 Listening Trend Over Days")
+            st.plotly_chart(fig6, use_container_width=True)
+
+# Execute
 display_data()
+
+
+
 
