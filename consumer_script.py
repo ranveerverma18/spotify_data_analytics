@@ -1,4 +1,4 @@
-# This script consumes messages from multiple Kafka topics and stores them in MongoDB.
+# This script consumes messages from multiple Kafka topics and stores them in MongoDB Atlas.
 # It uses the Confluent Kafka library for Kafka interactions and PyMongo for MongoDB operations.
 
 import threading
@@ -25,8 +25,10 @@ schema_registry_client = SchemaRegistryClient({
     'basic.auth.user.info': '{}:{}'.format('EFMB2DEU7PLZKQMG', 'dcvZBcYboTVYrBRlhSxM2uSLhFSSxzZhGO87WV5NHxyAZRzUByYm7yYtwWwyQwaS')
 })
 
-# MongoDB Setup
-mongo_client = MongoClient("mongodb://localhost:27017/")
+# MongoDB Atlas Setup
+
+mongo_client = MongoClient("mongodb+srv://ranveerverma18:ranveer18@mongo-db-cluster.7xghnej.mongodb.net/spotify_data?retryWrites=true&w=majority")
+
 db = mongo_client["spotify_data"]
 
 # Define topics and their schema subjects

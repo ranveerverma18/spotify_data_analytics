@@ -11,6 +11,9 @@ mongo_uri = os.getenv("MONGO_URI", "mongodb+srv://ranveerverma18:ranveer18@mongo
 client = MongoClient(mongo_uri)  # MongoDB URI from environment variable
 db = client['spotify_data']  # Your database name
 
+# Print to confirm connection
+print("Connected to MongoDB")
+
 # List of relevant collections
 collections = ['spotify_liked_songs', 'spotify_user_playlists', 'spotify_top_tracks', 
                'spotify_top_artists', 'spotify_recently_played']
@@ -35,6 +38,8 @@ def display_data():
     if df.empty:
         st.write("No data available.")
     else:
+        # Debugging: Force print the DataFrame
+        st.write(df.head())  # This will show the first few rows of data
         st.write(f"Current Data from Collection: {selected_collection}")
         st.dataframe(df)
         
@@ -91,5 +96,4 @@ start_change_stream()
 
 # Display the data
 display_data()
-
 
