@@ -7,6 +7,7 @@ from confluent_kafka.serialization import StringSerializer
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 
+# Kafka Configuration
 kafka_config = {
     'bootstrap.servers': 'pkc-l7pr2.ap-south-1.aws.confluent.cloud:9092', 
     'sasl.mechanisms': 'PLAIN',
@@ -15,6 +16,7 @@ kafka_config = {
     'sasl.password': '8AZFKxD8XSgYhYpcg25Z4yQEIVUKVLPa0+SAkW9LjNwWVVK9RJZguxluzadIbFcr'
 }
 
+# Schema Registry Configuration
 schema_registry_client = SchemaRegistryClient({
   'url': 'https://psrc-epk8y.australia-southeast1.gcp.confluent.cloud',
   'basic.auth.user.info': '{}:{}'.format('EFMB2DEU7PLZKQMG', 'dcvZBcYboTVYrBRlhSxM2uSLhFSSxzZhGO87WV5NHxyAZRzUByYm7yYtwWwyQwaS')
@@ -26,7 +28,7 @@ def get_latest_schema(subject):
     schema = schema_registry_client.get_latest_version(subject).schema.schema_str
     return AvroSerializer(schema_registry_client, schema)
 
-# Producers
+# Kafka Producers for each topic
 user_profile_producer = SerializingProducer({**kafka_config,
                                              'key.serializer': key_serializer,
                                              'value.serializer': get_latest_schema('spotify_user_profile-value')})
@@ -61,17 +63,18 @@ def authenticate_spotify():
     ))
     return sp
 
-# Delivery report callback function
+# Kafka Delivery Report
 def delivery_report(err, msg):
     if err is not None:
         print(f"Delivery failed for {msg.key()}: {err}")
     else:
         print(f"Message delivered to {msg.topic()} [{msg.partition()}] at offset {msg.offset()}")
 
-# Fetching data and sending to Kafka
+# Send data to Kafka topics
 def send_data_to_kafka(sp):
     user_profile_raw = sp.current_user()
     user_id = user_profile_raw["id"]
+
     user_profile = {
         "user_id": user_id,
         "display_name": user_profile_raw.get("display_name", ""),
@@ -122,8 +125,6 @@ def send_data_to_kafka(sp):
             "user_id": user_id,
             "artist_name": item["name"],
             "artist_id": item["id"],
-            "genres": item.get("genres", []),
-            "followers": item.get("followers", {}).get("total", 0),
             "popularity": item.get("popularity", 0),
             "artist_url": item.get("external_urls", {}).get("spotify", "")
         }
@@ -144,7 +145,7 @@ def send_data_to_kafka(sp):
             "album_name": track["album"]["name"],
             "track_url": track["external_urls"]["spotify"],
             "track_id": track["id"],
-            "popularity": track["popularity"]
+            "added_at": item.get("added_at", "")  
         }
         liked_songs_producer.produce(
             topic='spotify_liked_songs',
@@ -153,16 +154,20 @@ def send_data_to_kafka(sp):
             on_delivery=delivery_report
         )
 
+
     recently_played_raw = sp.current_user_recently_played(limit=10)
     for item in recently_played_raw["items"]:
         track = item["track"]
         recently_played = {
             "user_id": user_id,
             "track_name": track["name"],
-            "artist_name": track["artists"][0]["name"] if track["artists"] else "Unknown",
+            "artist_name": track["artists"][0]["name"] if track.get("artists") else "Unknown",
+            "album_name": track["album"]["name"] if track.get("album") else "Unknown",
+            "track_url": track["external_urls"]["spotify"] if track.get("external_urls") else "Unknown",  
             "played_at": item["played_at"],
             "track_id": track["id"]
         }
+
         recently_played_producer.produce(
             topic='spotify_recently_played',
             key=str(uuid.uuid4()),
@@ -170,22 +175,34 @@ def send_data_to_kafka(sp):
             on_delivery=delivery_report
         )
 
-    playlists_raw = sp.current_user_playlists(limit=10)
-    for item in playlists_raw["items"]:
-        playlist = {
+
+    user_playlists_raw = sp.current_user_playlists(limit=10)
+    for playlist in user_playlists_raw["items"]:
+        playlist_data = {
             "user_id": user_id,
-            "playlist_name": item["name"],
-            "playlist_id": item["id"],
-            "track_count": item["tracks"]["total"],
-            "playlist_url": item["external_urls"]["spotify"]
+            "playlist_name": playlist.get("name", ""),
+            "playlist_id": playlist.get("id", ""),
+            "playlist_url": playlist.get("external_urls", {}).get("spotify", ""),
+            "description": playlist.get("description", "") or "No description",
+            "track_count": playlist.get("tracks", {}).get("total", 0),
+            "is_public": playlist.get("public", False),
+            "images": [
+                {
+                    "url": img.get("url", ""),
+                    "height": int(img.get("height") or 0),
+                    "width": int(img.get("width") or 0)
+                } for img in (playlist.get("images") or [])
+            ]
         }
+
         playlists_producer.produce(
             topic='spotify_user_playlists',
-            key=str(uuid.uuid4()),
-            value=playlist,
+            key=playlist_data["playlist_id"],
+            value=playlist_data,
             on_delivery=delivery_report
         )
 
+    # Flush all producers
     user_profile_producer.flush()
     top_tracks_producer.flush()
     top_artists_producer.flush()
@@ -193,15 +210,12 @@ def send_data_to_kafka(sp):
     recently_played_producer.flush()
     playlists_producer.flush()
 
+# Main runner
 def main():
     sp = authenticate_spotify()
-
     while True:
         send_data_to_kafka(sp)
         time.sleep(10)
 
 if __name__ == "__main__":
     main()
-
-
-
