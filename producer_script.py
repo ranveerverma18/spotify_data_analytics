@@ -1,7 +1,5 @@
 import time
-import random
 import uuid
-from datetime import datetime
 from confluent_kafka import SerializingProducer
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroSerializer
@@ -17,13 +15,12 @@ kafka_config = {
     'sasl.password': '8AZFKxD8XSgYhYpcg25Z4yQEIVUKVLPa0+SAkW9LjNwWVVK9RJZguxluzadIbFcr'
 }
 
-
 schema_registry_client = SchemaRegistryClient({
   'url': 'https://psrc-epk8y.australia-southeast1.gcp.confluent.cloud',
   'basic.auth.user.info': '{}:{}'.format('EFMB2DEU7PLZKQMG', 'dcvZBcYboTVYrBRlhSxM2uSLhFSSxzZhGO87WV5NHxyAZRzUByYm7yYtwWwyQwaS')
 })
 
-key_serializer = StringSerializer('utf_8')  #serialized the keys as UTF-8 strings
+key_serializer = StringSerializer('utf_8')
 
 def get_latest_schema(subject):
     schema = schema_registry_client.get_latest_version(subject).schema.schema_str
@@ -64,71 +61,6 @@ def authenticate_spotify():
     ))
     return sp
 
-#fetching data and sending to kafka
-def send_data_to_kafka(sp):
-    user_profile = sp.current_user()
-    top_tracks = sp.current_user_top_tracks(limit=10)
-    top_artists = sp.current_user_top_artists(limit=10)
-    liked_songs = sp.current_user_saved_tracks(limit=10)
-    recently_played = sp.current_user_recently_played(limit=10)
-    playlists = sp.current_user_playlists(limit=10)
-
-    # Produce user profile data
-    user_profile_producer.produce(
-        topic='spotify_user_profile',
-        key=user_profile['id'],
-        value=user_profile,
-        on_delivery=delivery_report
-    )
-
-    # Produce top tracks data
-    top_tracks_producer.produce(
-        topic='spotify_top_tracks',
-        key=str(uuid.uuid4()),  # Generate unique key for each top track
-        value=top_tracks,
-        on_delivery=delivery_report
-    )
-
-    # Produce top artists data
-    top_artists_producer.produce(
-        topic='spotify_top_artists',
-        key=str(uuid.uuid4()),  # Generate unique key for each artist list
-        value=top_artists,
-        on_delivery=delivery_report
-    )
-
-    # Produce liked songs data
-    liked_songs_producer.produce(
-        topic='spotify_liked_songs',
-        key=str(uuid.uuid4()),  # Generate unique key for each liked song list
-        value=liked_songs,
-        on_delivery=delivery_report
-    )
-
-    # Produce recently played tracks data
-    recently_played_producer.produce(
-        topic='spotify_recently_played',
-        key=str(uuid.uuid4()),  # Generate unique key for each recently played list
-        value=recently_played,
-        on_delivery=delivery_report
-    )
-
-    # Produce playlists data
-    playlists_producer.produce(
-        topic='spotify_user_playlists',
-        key=str(uuid.uuid4()),  # Generate unique key for each playlist list
-        value=playlists,
-        on_delivery=delivery_report
-    )
-
-    #flushing the producers to ensure the messages are being sent
-    user_profile_producer.flush()
-    top_tracks_producer.flush()
-    top_artists_producer.flush()
-    liked_songs_producer.flush()
-    recently_played_producer.flush()
-    playlists_producer.flush()
-
 # Delivery report callback function
 def delivery_report(err, msg):
     if err is not None:
@@ -136,15 +68,140 @@ def delivery_report(err, msg):
     else:
         print(f"Message delivered to {msg.topic()} [{msg.partition()}] at offset {msg.offset()}")
 
-# Main function to continuously fetch and send data
+# Fetching data and sending to Kafka
+def send_data_to_kafka(sp):
+    user_profile_raw = sp.current_user()
+    user_id = user_profile_raw["id"]
+    user_profile = {
+        "user_id": user_id,
+        "display_name": user_profile_raw.get("display_name", ""),
+        "email": user_profile_raw.get("email", ""),
+        "country": user_profile_raw.get("country", ""),
+        "followers_count": user_profile_raw.get("followers", {}).get("total", 0),
+        "product_type": user_profile_raw.get("product", ""),
+        "external_urls": {
+            "spotify": user_profile_raw.get("external_urls", {}).get("spotify", "")
+        },
+        "images": [
+            {
+                "url": img.get("url", ""),
+                "height": img.get("height", 0),
+                "width": img.get("width", 0)
+            } for img in user_profile_raw.get("images", [])
+        ]
+    }
+
+    user_profile_producer.produce(
+        topic='spotify_user_profile',
+        key=user_profile["user_id"],
+        value=user_profile,
+        on_delivery=delivery_report
+    )
+
+    top_tracks_raw = sp.current_user_top_tracks(limit=10)
+    for item in top_tracks_raw["items"]:
+        top_track = {
+            "user_id": user_id,
+            "track_name": item["name"],
+            "artist_name": item["artists"][0]["name"] if item["artists"] else "Unknown",
+            "album_name": item["album"]["name"],
+            "track_url": item["external_urls"]["spotify"],
+            "track_id": item["id"],
+            "popularity": item["popularity"]
+        }
+        top_tracks_producer.produce(
+            topic='spotify_top_tracks',
+            key=str(uuid.uuid4()),
+            value=top_track,
+            on_delivery=delivery_report
+        )
+
+    top_artists_raw = sp.current_user_top_artists(limit=10)
+    for item in top_artists_raw["items"]:
+        top_artist = {
+            "user_id": user_id,
+            "artist_name": item["name"],
+            "artist_id": item["id"],
+            "genres": item.get("genres", []),
+            "followers": item.get("followers", {}).get("total", 0),
+            "popularity": item.get("popularity", 0),
+            "artist_url": item.get("external_urls", {}).get("spotify", "")
+        }
+        top_artists_producer.produce(
+            topic='spotify_top_artists',
+            key=str(uuid.uuid4()),
+            value=top_artist,
+            on_delivery=delivery_report
+        )
+
+    liked_songs_raw = sp.current_user_saved_tracks(limit=10)
+    for item in liked_songs_raw["items"]:
+        track = item["track"]
+        liked_song = {
+            "user_id": user_id,
+            "track_name": track["name"],
+            "artist_name": track["artists"][0]["name"] if track["artists"] else "Unknown",
+            "album_name": track["album"]["name"],
+            "track_url": track["external_urls"]["spotify"],
+            "track_id": track["id"],
+            "popularity": track["popularity"]
+        }
+        liked_songs_producer.produce(
+            topic='spotify_liked_songs',
+            key=str(uuid.uuid4()),
+            value=liked_song,
+            on_delivery=delivery_report
+        )
+
+    recently_played_raw = sp.current_user_recently_played(limit=10)
+    for item in recently_played_raw["items"]:
+        track = item["track"]
+        recently_played = {
+            "user_id": user_id,
+            "track_name": track["name"],
+            "artist_name": track["artists"][0]["name"] if track["artists"] else "Unknown",
+            "played_at": item["played_at"],
+            "track_id": track["id"]
+        }
+        recently_played_producer.produce(
+            topic='spotify_recently_played',
+            key=str(uuid.uuid4()),
+            value=recently_played,
+            on_delivery=delivery_report
+        )
+
+    playlists_raw = sp.current_user_playlists(limit=10)
+    for item in playlists_raw["items"]:
+        playlist = {
+            "user_id": user_id,
+            "playlist_name": item["name"],
+            "playlist_id": item["id"],
+            "track_count": item["tracks"]["total"],
+            "playlist_url": item["external_urls"]["spotify"]
+        }
+        playlists_producer.produce(
+            topic='spotify_user_playlists',
+            key=str(uuid.uuid4()),
+            value=playlist,
+            on_delivery=delivery_report
+        )
+
+    user_profile_producer.flush()
+    top_tracks_producer.flush()
+    top_artists_producer.flush()
+    liked_songs_producer.flush()
+    recently_played_producer.flush()
+    playlists_producer.flush()
+
 def main():
     sp = authenticate_spotify()
 
     while True:
         send_data_to_kafka(sp)
-        time.sleep(10)  # Delay for 60 seconds before fetching new data
+        time.sleep(10)
 
 if __name__ == "__main__":
     main()
+
 
 
