@@ -4,7 +4,10 @@ from starlette.middleware.sessions import SessionMiddleware
 import asyncio
 import uvicorn
 
-# ✅ Corrected module imports based on your filenames
+import os
+print("Current Working Directory:", os.getcwd())
+
+
 from python_script_for_oauth import get_spotify_auth_url, get_tokens, fetch_user_data
 from producer_script import send_to_kafka
 from consumer_script import consume_from_kafka
