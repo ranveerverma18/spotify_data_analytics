@@ -59,6 +59,10 @@ async def callback(request: Request):
         user_data = fetch_user_data(access_token)
         logger.debug(f"Fetched user data: {user_data}")
 
+        # Ensure user_data is a dictionary and has the expected structure
+        if not isinstance(user_data, dict):
+            raise HTTPException(status_code=500, detail="User data is not in the expected dictionary format")
+
         if "user_profile" not in user_data or "id" not in user_data["user_profile"]:
             raise HTTPException(status_code=500, detail="Invalid user data structure received from Spotify")
 
@@ -87,6 +91,7 @@ async def callback(request: Request):
 # Start the app with uvicorn
 if __name__ == "__main__":
     uvicorn.run("spotify_backend.fastapi_app:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
