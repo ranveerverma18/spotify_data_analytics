@@ -3,7 +3,7 @@ import spotipy
 
 CLIENT_ID = 'e406584407bc4d6abfbc0ed5052983e0'
 CLIENT_SECRET = '3052c144d4d1423e9b9bcdf02d587cc5'
-REDIRECT_URI = 'http://localhost:8000/callback'
+REDIRECT_URI = 'http://127.0.0.1:8000/callback'
 
 SCOPE = "user-read-private user-read-email user-top-read user-library-read user-read-recently-played playlist-read-private playlist-read-collaborative"
 

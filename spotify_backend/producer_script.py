@@ -58,7 +58,7 @@ def authenticate_spotify():
     sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
         client_id='e406584407bc4d6abfbc0ed5052983e0',
         client_secret='3052c144d4d1423e9b9bcdf02d587cc5',
-        redirect_uri='http://localhost:8888/callback',
+        redirect_uri='http://127.0.0.1:8000/callback',
         scope="user-read-private user-read-email user-top-read user-library-read user-read-recently-played playlist-read-private playlist-read-collaborative"
     ))
     return sp
