@@ -2,3 +2,7 @@ kafka-python
 pymongo
 requests
 python-dotenv
+fastapi
+uvicorn
+spotipy
+confluent-kafka
