@@ -14,19 +14,25 @@ def get_spotify_auth_url():
 def get_tokens(code):
     auth = SpotifyOAuth(client_id=CLIENT_ID, client_secret=CLIENT_SECRET, redirect_uri=REDIRECT_URI, scope=SCOPE)
     token_info = auth.get_access_token(code)
-    return token_info
+    return token_info['access_token']  # 👈 return just the access token
+
 
 def fetch_user_data(access_token):
     sp = spotipy.Spotify(auth=access_token)
 
-    user_data = {
-        "user_profile": sp.current_user(),
-        "top_tracks": sp.current_user_top_tracks(limit=10),
-        "top_artists": sp.current_user_top_artists(limit=10),
-        "liked_songs": sp.current_user_saved_tracks(limit=10),
-        "recently_played": sp.current_user_recently_played(limit=10),
-        "playlists": sp.current_user_playlists(limit=10)
-    }
+    try:
+        user_data = {
+            "user_profile": sp.current_user(),
+            "top_tracks": sp.current_user_top_tracks(limit=10),
+            "top_artists": sp.current_user_top_artists(limit=10),
+            "liked_songs": sp.current_user_saved_tracks(limit=10),
+            "recently_played": sp.current_user_recently_played(limit=10),
+            "playlists": sp.current_user_playlists(limit=10)
+        }
+        return user_data
 
-    return user_data
+    except spotipy.exceptions.SpotifyException as e:
+        print(f"Spotify API error: {e}")
+        raise
+        
 

@@ -1,9 +1,11 @@
 import sys
 import os
+from pprint import pprint  # For debugging
+
 sys.path.append(os.path.join(os.path.dirname(__file__), 'spotify_backend'))
 
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 import uvicorn
@@ -47,29 +49,31 @@ async def callback(request: Request):
         raise HTTPException(status_code=400, detail="Authorization code not found.")
 
     try:
-        # Get access + refresh tokens
         tokens = get_tokens(code)
         access_token = tokens["access_token"]
 
-        # Fetch Spotify user data
         user_data = fetch_user_data(access_token)
+        pprint(user_data)  # DEBUG: print entire structure to console
+
+        if "user_profile" not in user_data or "id" not in user_data["user_profile"]:
+            raise HTTPException(status_code=500, detail="Invalid user data structure received from Spotify")
+
         user_id = user_data["user_profile"]["id"]
 
-        # Send user data to Kafka
         send_data_to_kafka(user_data)
 
-        # Generate personalized MongoDB Chart embed URL
         chart_url = f"{MONGODB_CHART_BASE}#user_id={user_id}"
 
-        # Render the personalized chart in the webpage
         return templates.TemplateResponse("dashboard.html", {"request": request, "chart_url": chart_url})
 
     except Exception as e:
+        print(f"Callback error: {str(e)}")  # Helpful for debugging
         raise HTTPException(status_code=500, detail=f"Error in callback flow: {str(e)}")
 
 # Start the app with uvicorn
 if __name__ == "__main__":
     uvicorn.run("spotify_backend.fastapi_app:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
