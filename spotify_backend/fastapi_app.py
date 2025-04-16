@@ -49,8 +49,9 @@ async def callback(request: Request):
         raise HTTPException(status_code=400, detail="Authorization code not found.")
 
     try:
-        # ✅ FIXED: get access token as a string
-        access_token = get_tokens(code)
+        # ✅ FIXED: Get access token as a string correctly
+        tokens = get_tokens(code)
+        access_token = tokens["access_token"]  # Extract the actual access token
 
         # Fetch user data
         user_data = fetch_user_data(access_token)
@@ -61,8 +62,10 @@ async def callback(request: Request):
 
         user_id = user_data["user_profile"]["id"]
 
+        # Send the data to Kafka
         send_data_to_kafka(user_data)
 
+        # Construct the MongoDB chart URL
         chart_url = f"{MONGODB_CHART_BASE}#user_id={user_id}"
 
         return templates.TemplateResponse("dashboard.html", {"request": request, "chart_url": chart_url})
@@ -75,6 +78,7 @@ async def callback(request: Request):
 # Start the app with uvicorn
 if __name__ == "__main__":
     uvicorn.run("spotify_backend.fastapi_app:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
