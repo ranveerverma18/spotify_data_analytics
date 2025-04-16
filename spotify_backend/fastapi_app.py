@@ -1,16 +1,20 @@
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), 'spotify_backend'))
+
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 import asyncio
 import uvicorn
 
-import os
+# Print the current working directory to debug path issues
 print("Current Working Directory:", os.getcwd())
 
-
-from oauth import get_spotify_auth_url, get_tokens, fetch_user_data
-from producer_script import send_to_kafka
-from consumer_script import consume_from_kafka
+# Absolute import after adjusting sys.path
+from spotify_backend.oauth import get_spotify_auth_url, get_tokens, fetch_user_data
+from spotify_backend.producer_script import send_data_to_kafka
+from spotify_backend.consumer_script import consume_topic
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="supersecret")
@@ -59,9 +63,8 @@ async def callback(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error in callback flow: {str(e)}")
 
-
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("spotify_backend.fastapi_app:app", host="0.0.0.0", port=8000, reload=True)
 
 
 
