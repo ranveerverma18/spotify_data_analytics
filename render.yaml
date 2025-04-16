@@ -3,7 +3,7 @@ services:
     name: kafka-producer
     runtime: python
     plan: free 
-    repo: https://github.com/ranveeverma18/spotify_data_analytics
+    repo: https://github.com/ranveerverma18/spotify_data_analytics
     branch: main
     buildCommand: pip install -r spotify_backend/requirements.txt
     startCommand: python spotify_backend/producer.py
@@ -28,7 +28,7 @@ services:
     name: kafka-consumer
     runtime: python
     plan: free  
-    repo: https://github.com/ranveeverma18/spotify_data_analytics
+    repo: https://github.com/ranveerverma18/spotify_data_analytics
     branch: main
     buildCommand: pip install -r spotify_backend/requirements.txt
     startCommand: python spotify_backend/consumer.py
