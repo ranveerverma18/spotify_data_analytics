@@ -7,9 +7,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 import uvicorn
+import requests  # For the updated fetch_user_data function
 
 # Import from backend modules
-from spotify_backend.oauth import get_spotify_auth_url, get_tokens, fetch_user_data
+from spotify_backend.oauth import get_spotify_auth_url, get_tokens
 from spotify_backend.producer_script import send_data_to_kafka
 
 # Initialize FastAPI app
@@ -42,6 +43,20 @@ def login():
     url = get_spotify_auth_url()
     return RedirectResponse(url)
 
+# Function to fetch user data using the access token
+def fetch_user_data(access_token):
+    """Fetch user data using the provided access token from Spotify"""
+    url = "https://api.spotify.com/v1/me"  # Fetch user profile
+    headers = {
+        "Authorization": f"Bearer {access_token}"
+    }
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code == 200:
+        return response.json()  # Ensure this is a dictionary
+    else:
+        raise Exception(f"Failed to fetch user data: {response.text}")
+
 # Callback route after Spotify auth
 @app.get("/callback")
 async def callback(request: Request):
@@ -63,10 +78,10 @@ async def callback(request: Request):
         if not isinstance(user_data, dict):
             raise HTTPException(status_code=500, detail="User data is not in the expected dictionary format")
 
-        if "user_profile" not in user_data or "id" not in user_data["user_profile"]:
+        if "id" not in user_data:
             raise HTTPException(status_code=500, detail="Invalid user data structure received from Spotify")
 
-        user_id = user_data["user_profile"]["id"]
+        user_id = user_data["id"]
 
         # Send the data to Kafka
         try:
@@ -84,11 +99,10 @@ async def callback(request: Request):
         logger.error(f"Callback error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error in callback flow: {str(e)}")
 
-
-
 # Start the app with uvicorn
 if __name__ == "__main__":
     uvicorn.run("spotify_backend.fastapi_app:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
