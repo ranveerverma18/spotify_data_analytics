@@ -49,11 +49,12 @@ async def callback(request: Request):
         raise HTTPException(status_code=400, detail="Authorization code not found.")
 
     try:
-        tokens = get_tokens(code)
-        access_token = tokens["access_token"]
+        # ✅ FIXED: get access token as a string
+        access_token = get_tokens(code)
 
+        # Fetch user data
         user_data = fetch_user_data(access_token)
-        pprint(user_data)  # DEBUG: print entire structure to console
+        pprint(user_data)
 
         if "user_profile" not in user_data or "id" not in user_data["user_profile"]:
             raise HTTPException(status_code=500, detail="Invalid user data structure received from Spotify")
@@ -67,8 +68,9 @@ async def callback(request: Request):
         return templates.TemplateResponse("dashboard.html", {"request": request, "chart_url": chart_url})
 
     except Exception as e:
-        print(f"Callback error: {str(e)}")  # Helpful for debugging
+        print(f"Callback error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error in callback flow: {str(e)}")
+
 
 # Start the app with uvicorn
 if __name__ == "__main__":
