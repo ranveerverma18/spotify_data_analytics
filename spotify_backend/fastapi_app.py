@@ -51,15 +51,15 @@ async def callback(request: Request):
         raise HTTPException(status_code=400, detail="Authorization code not found.")
 
     try:
-        # ✅ FIXED: Get access token as a string correctly
+        # Get access token correctly
         tokens = get_tokens(code)
-        access_token = tokens["access_token"]  # Extract the actual access token
+        access_token = tokens["access_token"]
 
-        # Fetch user data
+        # Fetch user data and log it for debugging
         user_data = fetch_user_data(access_token)
-        logger.debug(f"Fetched user data: {user_data}")
+        logger.debug(f"Fetched user data: {user_data}")  # Add logging to check the response structure
 
-        # Ensure user_data is a dictionary and has the expected structure
+        # Check if the response is a dictionary as expected
         if not isinstance(user_data, dict):
             raise HTTPException(status_code=500, detail="User data is not in the expected dictionary format")
 
@@ -67,9 +67,6 @@ async def callback(request: Request):
             raise HTTPException(status_code=500, detail="Invalid user data structure received from Spotify")
 
         user_id = user_data["user_profile"]["id"]
-        
-        if not user_id:
-            raise HTTPException(status_code=500, detail="User ID is missing.")
 
         # Send the data to Kafka
         try:
@@ -86,6 +83,7 @@ async def callback(request: Request):
     except Exception as e:
         logger.error(f"Callback error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error in callback flow: {str(e)}")
+
 
 
 # Start the app with uvicorn
