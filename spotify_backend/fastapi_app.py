@@ -1,9 +1,7 @@
 import sys
 import os
 from pprint import pprint  # For debugging
-
-sys.path.append(os.path.join(os.path.dirname(__file__), 'spotify_backend'))
-
+import logging
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -28,6 +26,10 @@ MONGODB_CHART_BASE = (
     "&autoRefresh=true&maxDataAge=3600&showTitleAndDesc=false"
     "&scalingWidth=fixed&scalingHeight=fixed"
 )
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # Home page with login button
 @app.get("/", response_class=HTMLResponse)
@@ -55,15 +57,22 @@ async def callback(request: Request):
 
         # Fetch user data
         user_data = fetch_user_data(access_token)
-        pprint(user_data)
+        logger.debug(f"Fetched user data: {user_data}")
 
         if "user_profile" not in user_data or "id" not in user_data["user_profile"]:
             raise HTTPException(status_code=500, detail="Invalid user data structure received from Spotify")
 
         user_id = user_data["user_profile"]["id"]
+        
+        if not user_id:
+            raise HTTPException(status_code=500, detail="User ID is missing.")
 
         # Send the data to Kafka
-        send_data_to_kafka(user_data)
+        try:
+            send_data_to_kafka(user_data)
+        except Exception as e:
+            logger.error(f"Error sending data to Kafka: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error sending data to Kafka: {str(e)}")
 
         # Construct the MongoDB chart URL
         chart_url = f"{MONGODB_CHART_BASE}#user_id={user_id}"
@@ -71,13 +80,14 @@ async def callback(request: Request):
         return templates.TemplateResponse("dashboard.html", {"request": request, "chart_url": chart_url})
 
     except Exception as e:
-        print(f"Callback error: {str(e)}")
+        logger.error(f"Callback error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error in callback flow: {str(e)}")
 
 
 # Start the app with uvicorn
 if __name__ == "__main__":
     uvicorn.run("spotify_backend.fastapi_app:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
