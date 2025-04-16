@@ -2,6 +2,7 @@ services:
   - type: worker
     name: kafka-producer
     runtime: python
+    plan: free 
     repo: https://github.com/ranveeverma18/spotify_data_analytics
     branch: main
     buildCommand: pip install -r spotify_backend/requirements.txt
@@ -26,6 +27,7 @@ services:
   - type: worker
     name: kafka-consumer
     runtime: python
+    plan: free  
     repo: https://github.com/ranveeverma18/spotify_data_analytics
     branch: main
     buildCommand: pip install -r spotify_backend/requirements.txt
