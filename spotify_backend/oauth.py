@@ -3,13 +3,18 @@ import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from fastapi import HTTPException
 import logging
+from base64 import b64encode
 
-# Replace with your credentials
-SPOTIFY_CLIENT_ID = "your_spotify_client_id"
-SPOTIFY_CLIENT_SECRET = "your_spotify_client_secret"
+# Replace these with your actual Spotify Developer credentials
+SPOTIFY_CLIENT_ID = "your_actual_client_id"
+SPOTIFY_CLIENT_SECRET = "your_actual_client_secret"
 SPOTIFY_REDIRECT_URI = "http://127.0.0.1:8000/callback"
 
-SCOPE = "user-read-private user-read-email user-top-read user-library-read user-read-recently-played playlist-read-private playlist-read-collaborative"
+SCOPE = (
+    "user-read-private user-read-email user-top-read "
+    "user-library-read user-read-recently-played "
+    "playlist-read-private playlist-read-collaborative"
+)
 
 # Function to get the authorization URL
 def get_spotify_auth_url():
@@ -22,12 +27,16 @@ def get_spotify_auth_url():
     ).get_authorize_url()
     return auth_url
 
-# Function to exchange authorization code for access token
+# Function to exchange authorization code for access and refresh tokens
 def get_tokens(code: str):
-    """Exchange the authorization code for access and refresh tokens using requests"""
+    """Exchange the authorization code for access and refresh tokens"""
     url = "https://accounts.spotify.com/api/token"
+    client_credentials = f"{SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}"
+    encoded_credentials = b64encode(client_credentials.encode("utf-8")).decode("utf-8")
+
     headers = {
-        "Authorization": f"Basic {SPOTIFY_CLIENT_ID}:{SPOTIFY_CLIENT_SECRET}"  # Base64 encoded
+        "Authorization": f"Basic {encoded_credentials}",
+        "Content-Type": "application/x-www-form-urlencoded"
     }
     data = {
         "code": code,
@@ -38,14 +47,16 @@ def get_tokens(code: str):
     response = requests.post(url, data=data, headers=headers)
 
     if response.status_code == 200:
-        tokens = response.json()  # Make sure the response is a dictionary
-        access_token = tokens['access_token']
-        refresh_token = tokens['refresh_token']
-        return access_token, refresh_token
+        tokens = response.json()
+        return {
+            "access_token": tokens["access_token"],
+            "refresh_token": tokens["refresh_token"]
+        }
     else:
         logging.error(f"Error fetching tokens: {response.text}")
         raise HTTPException(status_code=500, detail="Failed to get access token")
 
+# Function to authenticate user via Spotipy
 def authenticate_spotify():
     """Authenticate the user and get the spotipy instance"""
     sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
@@ -56,23 +67,20 @@ def authenticate_spotify():
     ))
     return sp
 
+# Function to fetch extended user data
 def fetch_user_data(access_token):
-    """Fetch user data using the provided access token"""
+    """Fetch extended user data using the provided access token"""
     sp = spotipy.Spotify(auth=access_token)
 
     try:
-        # Fetch basic user profile data using spotipy
         user_data = sp.current_user()
-
-        # Fetch additional data like top tracks, top artists, etc.
         top_tracks = sp.current_user_top_tracks(limit=10)
         top_artists = sp.current_user_top_artists(limit=10)
         liked_songs = sp.current_user_saved_tracks(limit=10)
         recently_played = sp.current_user_recently_played(limit=10)
         playlists = sp.current_user_playlists(limit=10)
 
-        # Combine the data into a single dictionary
-        full_user_data = {
+        return {
             "user_profile": user_data,
             "top_tracks": top_tracks,
             "top_artists": top_artists,
@@ -81,11 +89,11 @@ def fetch_user_data(access_token):
             "playlists": playlists
         }
 
-        return full_user_data
-
     except spotipy.exceptions.SpotifyException as e:
         logging.error(f"Spotify API error: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch user data from Spotify")
+
+
 
 
 

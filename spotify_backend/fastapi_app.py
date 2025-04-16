@@ -55,6 +55,7 @@ def fetch_user_data(access_token):
     if response.status_code == 200:
         return response.json()  # Ensure this is a dictionary
     else:
+        logger.error(f"Failed to fetch user data: {response.text}")
         raise Exception(f"Failed to fetch user data: {response.text}")
 
 # Callback route after Spotify auth
@@ -63,12 +64,14 @@ async def callback(request: Request):
     code = request.query_params.get("code")
 
     if not code:
+        logger.error("Authorization code not found.")
         raise HTTPException(status_code=400, detail="Authorization code not found.")
 
     try:
-        # Get access token correctly
+        # Get access token and refresh token correctly
         tokens = get_tokens(code)
         access_token = tokens["access_token"]
+        refresh_token = tokens.get("refresh_token")  # Optionally handle the refresh_token
 
         # Fetch user data and log it for debugging
         user_data = fetch_user_data(access_token)
@@ -76,9 +79,11 @@ async def callback(request: Request):
 
         # Check if the response is a dictionary as expected
         if not isinstance(user_data, dict):
+            logger.error("User data is not in the expected dictionary format.")
             raise HTTPException(status_code=500, detail="User data is not in the expected dictionary format")
 
         if "id" not in user_data:
+            logger.error("Invalid user data structure received from Spotify.")
             raise HTTPException(status_code=500, detail="Invalid user data structure received from Spotify")
 
         user_id = user_data["id"]
@@ -102,6 +107,7 @@ async def callback(request: Request):
 # Start the app with uvicorn
 if __name__ == "__main__":
     uvicorn.run("spotify_backend.fastapi_app:app", host="0.0.0.0", port=8000, reload=True)
+
 
 
 
