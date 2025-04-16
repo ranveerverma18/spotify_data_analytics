@@ -51,10 +51,10 @@ async def callback(request: Request):
         user_id = user_data["user_profile"]["id"]
 
         # 3. Send to Kafka
-        send_to_kafka(user_data, user_id)
+        send_data_to_kafka(user_data, user_id)
 
         # 4. Trigger Kafka consumer to store in MongoDB
-        await asyncio.to_thread(consume_from_kafka, user_id)
+        await asyncio.to_thread(consume_topic, user_id)
 
         # 5. Redirect to user's MongoDB chart
         redirect_url = f"{MONGODB_CHART_BASE}{user_id}"
