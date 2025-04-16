@@ -1,26 +1,31 @@
 import sys
 import os
-from pprint import pprint  # For debugging
+from pprint import pprint
 import logging
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 import uvicorn
-import requests  # For the updated fetch_user_data function
+import requests
+from pymongo import MongoClient
 
-# Import from backend modules
+# --- YOUR MODULES ---
 from spotify_backend.oauth import get_spotify_auth_url, get_tokens
 from spotify_backend.producer_script import send_data_to_kafka
 
-# Initialize FastAPI app
+# --- FASTAPI SETUP ---
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="supersecret")
-
-# Template setup
 templates = Jinja2Templates(directory="spotify_backend/templates")
 
-# MongoDB Dashboard Embed Base URL (Before #user_id=)
+# --- MONGODB SETUP ---
+MONGO_URI = "mongodb+srv://ranveerverma18:ranveer18@cluster0.mongodb.net/?retryWrites=true&w=majority"
+client = MongoClient(MONGO_URI)
+db = client["spotify_app"]
+collection = db["users_data"]
+
+# --- CHART DASHBOARD BASE URL ---
 MONGODB_CHART_BASE = (
     "https://charts.mongodb.com/charts-project-0-pnhfwmx/embed/dashboards"
     "?id=f34a04e3-a172-4c15-89be-05f7de03c0a3&theme=light"
@@ -28,35 +33,27 @@ MONGODB_CHART_BASE = (
     "&scalingWidth=fixed&scalingHeight=fixed"
 )
 
-# Set up logging
+# --- LOGGER ---
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# Home page with login button
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
-# Redirect to Spotify login
 @app.get("/login")
 def login():
-    url = get_spotify_auth_url()
-    return RedirectResponse(url)
+    return RedirectResponse(get_spotify_auth_url())
 
-# Function to fetch user data using the access token
 def fetch_user_data(access_token):
-    """Fetch user data using the provided access token from Spotify"""
-    url = "https://api.spotify.com/v1/me"  # Fetch user profile
-    headers = {
-        "Authorization": f"Bearer {access_token}"
-    }
+    url = "https://api.spotify.com/v1/me"
+    headers = { "Authorization": f"Bearer {access_token}" }
     response = requests.get(url, headers=headers)
-    
     if response.status_code == 200:
-        return response.json()  # Ensure this is a dictionary
+        return response.json()
     else:
         logger.error(f"Failed to fetch user data: {response.text}")
-        raise Exception(f"Failed to fetch user data: {response.text}")
+        raise Exception(f"Spotify API error: {response.text}")
 
 # Callback route after Spotify auth
 @app.get("/callback")
@@ -82,11 +79,11 @@ async def callback(request: Request):
             logger.error("User data is not in the expected dictionary format.")
             raise HTTPException(status_code=500, detail="User data is not in the expected dictionary format")
 
-        if "id" not in user_data:
+        if "user_profile" not in user_data or "id" not in user_data["user_profile"]:
             logger.error("Invalid user data structure received from Spotify.")
             raise HTTPException(status_code=500, detail="Invalid user data structure received from Spotify")
 
-        user_id = user_data["id"]
+        user_id = user_data["user_profile"]["id"]
 
         # Send the data to Kafka
         try:
@@ -95,16 +92,17 @@ async def callback(request: Request):
             logger.error(f"Error sending data to Kafka: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error sending data to Kafka: {str(e)}")
 
-        # Construct the MongoDB chart URL
-        chart_url = f"{MONGODB_CHART_BASE}#user_id={user_id}"
+        # Construct the personalized MongoDB chart URL
+        chart_url = f"https://charts.mongodb.com/charts-project-0-pnhfwmx/embed/dashboards?id=f34a04e3-a172-4c15-89be-05f7de03c0a3&theme=light&autoRefresh=true&maxDataAge=3600&showTitleAndDesc=false&scalingWidth=fixed&scalingHeight=fixed#user_id={user_id}"
 
+        # Return the template with the personalized chart
         return templates.TemplateResponse("dashboard.html", {"request": request, "chart_url": chart_url})
 
     except Exception as e:
         logger.error(f"Callback error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error in callback flow: {str(e)}")
 
-# Start the app with uvicorn
+
 if __name__ == "__main__":
     uvicorn.run("spotify_backend.fastapi_app:app", host="0.0.0.0", port=8000, reload=True)
 
