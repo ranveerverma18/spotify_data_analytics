@@ -7,7 +7,7 @@ A personalized music analytics pipeline using Spotify OAuth, Confluent Kafka, Mo
 ## 🚀 Features
 
 - User login via Spotify (OAuth2)
-- Fetches user’s top tracks, artists, and playlists
+- Fetches user's top tracks, artists, and playlists
 - Simulates real-time song play streams using Kafka
 - Stores stream data into MongoDB
 - Visualizes trends using Python dashboards
