@@ -6,6 +6,7 @@ from confluent_kafka.schema_registry.avro import AvroSerializer
 from confluent_kafka.serialization import StringSerializer
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
+from datetime import datetime
 
 # Kafka Configuration
 kafka_config = {
@@ -60,7 +61,7 @@ def authenticate_spotify():
         client_secret='3052c144d4d1423e9b9bcdf02d587cc5',
         redirect_uri='http://127.0.0.1:8000/callback',
         scope="user-read-private user-read-email user-top-read user-library-read user-read-recently-played playlist-read-private playlist-read-collaborative"
-    ))
+    ), requests_timeout=15)
     return sp
 
 # Kafka Delivery Report
@@ -71,7 +72,7 @@ def delivery_report(err, msg):
         print(f"Message delivered to {msg.topic()} [{msg.partition()}] at offset {msg.offset()}")
 
 # Send data to Kafka topics
-def send_data_to_kafka(sp):
+def send_data_to_kafka(sp, last_played_timestamp):
     user_profile_raw = sp.current_user()
     user_id = user_profile_raw["id"]
 
@@ -155,7 +156,18 @@ def send_data_to_kafka(sp):
         )
 
 
-    recently_played_raw = sp.current_user_recently_played(limit=10)
+    # Fetch recently played tracks, using 'after' parameter if last_played_timestamp exists
+    recently_played_raw = sp.current_user_recently_played(limit=50, after=last_played_timestamp) # Increased limit to fetch more in one go
+    new_last_played_timestamp = last_played_timestamp
+
+    # Spotify returns recently played in reverse chronological order, so we process from the end
+    # to find the latest timestamp.
+    if recently_played_raw and recently_played_raw["items"]:
+        # Sort by played_at to ensure we get the latest timestamp correctly
+        sorted_recently_played = sorted(recently_played_raw["items"], key=lambda x: x["played_at"])
+        # The played_at is in ISO format, convert to milliseconds timestamp for the 'after' parameter
+        new_last_played_timestamp = int(datetime.strptime(sorted_recently_played[-1]["played_at"], '%Y-%m-%dT%H:%M:%S.%fZ').timestamp() * 1000) + 1 # Add 1ms to avoid fetching the same track again
+
     for item in recently_played_raw["items"]:
         track = item["track"]
         recently_played = {
@@ -210,11 +222,14 @@ def send_data_to_kafka(sp):
     recently_played_producer.flush()
     playlists_producer.flush()
 
+    return new_last_played_timestamp
+
 # Main runner
 def main():
     sp = authenticate_spotify()
+    last_played_timestamp = None # Initialize last played timestamp
     while True:
-        send_data_to_kafka(sp)
+        last_played_timestamp = send_data_to_kafka(sp, last_played_timestamp)
         time.sleep(10)
 
 if __name__ == "__main__":

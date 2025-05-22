@@ -106,8 +106,8 @@ const Carousel = () => {
           p={8}
         >
           <Image src={tracks[index].cover} alt={tracks[index].title} w="180px" h="180px" borderRadius="lg" mb={6} />
-          <Heading size="md" color="spotify.green" mb={2} textAlign="center">{tracks[index].title}</Heading>
-          <Text color="spotify.lightGray" fontSize="lg" textAlign="center">{tracks[index].artist}</Text>
+          <Heading size="md" color="white" mb={2} textAlign="center">{tracks[index].title}</Heading>
+          <Text color="gray.300" fontSize="lg" textAlign="center">{tracks[index].artist}</Text>
         </MotionBox>
       </AnimatePresence>
     </Box>
@@ -138,10 +138,10 @@ const Login = () => {
         </Flex>
         {/* Content */}
         <VStack align="flex-start" spacing={10} maxW="lg" w="100%">
-          <Heading size="2xl" bgGradient="linear(to-r, spotify.green, green.400)" bgClip="text" letterSpacing="tight">
-            Spotify Analytics
+          <Heading size="2xl" color="blue.300" letterSpacing="tight">
+             Spotify Analytics
           </Heading>
-          <Text fontSize="xl" color="spotify.blue">
+          <Text fontSize="xl" color="whiteAlpha.800" mb={4}>
             Discover your listening habits and explore your music taste
           </Text>
           <Button

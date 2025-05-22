@@ -4,6 +4,7 @@ import { extendTheme } from '@chakra-ui/react';
 
 const theme = extendTheme({});
 import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
 
 function App() {
   return (
@@ -11,7 +12,8 @@ function App() {
       <Router>
         <Routes>
           <Route path="/" element={<Login />} />
-          {/* Add more routes here for dashboard and other pages */}
+          <Route path="/dashboard" element={<Dashboard />} />
+          {/* Add more routes here for other pages */}
         </Routes>
       </Router>
     </ChakraProvider>
