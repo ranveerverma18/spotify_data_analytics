@@ -1,7 +1,7 @@
 import requests
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Depends, Request, Query
 from fastapi.responses import RedirectResponse
 from typing import Optional
 import logging
@@ -13,8 +13,8 @@ import os
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Replace these with your actual Spotify Developer credentials.  Do NOT hardcode in a production environment.  Use environment variables.
-SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
-SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
+SPOTIFY_CLIENT_ID = os.getenv("e406584407bc4d6abfbc0ed5052983e0")
+SPOTIFY_CLIENT_SECRET = os.getenv("3052c144d4d1423e9b9bcdf02d587cc5")
 SPOTIFY_REDIRECT_URI = "http://localhost:8000/callback"
 # SPOTIFY_REDIRECT_URI = "http://localhost:8000/callback" #  You had this.  Be consistent.
 SCOPE = (
@@ -69,14 +69,13 @@ def get_spotify_client(token_info: dict):
 
 # Function to fetch extended user data
 @app.get("/me")
-async def get_me(token_info: dict = Depends(callback)): # Requires a valid token
+async def get_me(token: str = Query(...)):
     """
     Endpoint to fetch user data.
     """
     try:
-        sp = get_spotify_client(token_info)
-        user_data = sp.current_user()
-        return user_data
+        sp = spotipy.Spotify(auth=token)
+        return sp.current_user()
     except spotipy.SpotifyException as e:
         raise HTTPException(status_code=e.http_status, detail=e.msg)
     except Exception as e:
@@ -84,12 +83,12 @@ async def get_me(token_info: dict = Depends(callback)): # Requires a valid token
         raise HTTPException(status_code=500, detail="Failed to fetch user data")
     
 @app.get("/user_data")
-async def get_user_data(token_info: dict = Depends(callback)):
+async def get_user_data(token: str = Query(...)):
     """
     Endpoint to fetch extended user data using the provided access token.
     """
     try:
-        sp = get_spotify_client(token_info)
+        sp = spotipy.Spotify(auth=token)
 
         user_data = sp.current_user()
         top_tracks = sp.current_user_top_tracks(limit=10)
