@@ -85,7 +85,7 @@ const Carousel = () => {
   }, []);
 
   return (
-    <Box w="100%" h="100vh" display="flex" alignItems="center" justifyContent="center" bg="spotify.gray" position="relative">
+    <Box w="100%" h="100vh" display="flex" alignItems="center" justifyContent="center" bg="gray.900" position="relative">
       <AnimatePresence initial={false}>
         <MotionBox
           key={index}
@@ -96,7 +96,7 @@ const Carousel = () => {
           position="absolute"
           w="320px"
           h="420px"
-          bg="spotify.black"
+          bg="black"
           borderRadius="2xl"
           boxShadow="2xl"
           display="flex"
@@ -121,7 +121,7 @@ const Login = () => {
   };
 
   return (
-    <Flex w="100vw" h="100vh" bg="spotify.black">
+    <Flex w="100vw" h="100vh" bg="black">
       {/* Left: Login Section */}
       <Flex flex="1" direction="column" align="center" justify="center" h="100vh">
         {/* Big Logo */}
@@ -141,7 +141,7 @@ const Login = () => {
           <Heading size="2xl" bgGradient="linear(to-r, spotify.green, green.400)" bgClip="text" letterSpacing="tight">
             Spotify Analytics
           </Heading>
-          <Text fontSize="xl" color="spotify.lightGray">
+          <Text fontSize="xl" color="spotify.blue">
             Discover your listening habits and explore your music taste
           </Text>
           <Button

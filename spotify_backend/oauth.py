@@ -1,26 +1,17 @@
-import requests
-import spotipy
-from spotipy.oauth2 import SpotifyOAuth
-from fastapi import FastAPI, HTTPException, Depends, Request, Query
-from fastapi.responses import RedirectResponse
-from typing import Optional
 import logging
-from base64 import b64encode
-from urllib.parse import urlencode
-import os
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import RedirectResponse
+from spotipy.oauth2 import SpotifyOAuth
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Replace these with your actual Spotify Developer credentials.  Do NOT hardcode in a production environment.  Use environment variables.
-SPOTIFY_CLIENT_ID = os.getenv("e406584407bc4d6abfbc0ed5052983e0")
-SPOTIFY_CLIENT_SECRET = os.getenv("3052c144d4d1423e9b9bcdf02d587cc5")
-SPOTIFY_REDIRECT_URI = "http://localhost:8000/callback"
-# SPOTIFY_REDIRECT_URI = "http://localhost:8000/callback" #  You had this.  Be consistent.
-SCOPE = (
-    "user-read-private user-read-email user-top-read "
-    "user-library-read user-read-recently-played "
-    "playlist-read-private playlist-read-collaborative"
+# Spotify API Credentials (HARDCODED - USE WITH CAUTION)
+SPOTIPY_CLIENT_ID = "e406584407bc4d6abfbc0ed5052983e0"  # REPLACE WITH YOUR CLIENT ID
+SPOTIPY_CLIENT_SECRET = "3052c144d4d1423e9b9bcdf02d587cc5"  # REPLACE WITH YOUR CLIENT SECRET
+SPOTIPY_REDIRECT_URI = "http://localhost:8000/callback"
+SPOTIPY_SCOPE = (
+    "user-read-private user-read-email user-top-read user-library-read user-read-recently-played playlist-read-private playlist-read-collaborative"
 )
 
 # Ensure you replace the placeholders
